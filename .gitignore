@@ -12,9 +12,12 @@
 *secrets*
 
 # Runtime data and logs
+appsec-config/
 appsec-data/
 appsec-logs/
 appsec-localconfig/
+appsec-smart-sync/
+appsec-postgres/
 logs/
 *.log
 

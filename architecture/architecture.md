@@ -70,11 +70,13 @@ flowchart TB
 ### DVWA
 
 1. A client sends an HTTP request to 192.168.1.220.
-2. NGINX receives the request.
-3. The NGINX configuration selects 192.168.1.118:80 as the backend.
-4. The request is forwarded to DVWA.
+2. NGINX receives the request through the open-appsec integration.
+3. open-appsec inspects the request according to its active security policy.
+4. The NGINX configuration selects 192.168.1.118:80 as the backend.
+5. Permitted requests are forwarded to DVWA; matching requests can be blocked.
 
-The open-appsec inspection path for this additional frontend must be verified separately.
+Inspection on this frontend was confirmed through Web Snort events
+(see [Custom Snort Rules](../detection/custom-snort-rules.md)).
 
 ## 6. Security Considerations
 
