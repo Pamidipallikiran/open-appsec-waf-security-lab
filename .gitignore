@@ -1,0 +1,35 @@
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.secret
+
+# API tokens and credentials
+*credentials*
+*secrets*
+
+# Runtime data and logs
+appsec-data/
+appsec-logs/
+appsec-localconfig/
+logs/
+*.log
+
+# Backups
+*.bak
+*.backup
+*.old
+*.swp
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Python temporary files
+__pycache__/
+*.pyc
+.venv/
+venv/

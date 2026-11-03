@@ -1,0 +1,48 @@
+services:
+  appsec-agent:
+    image: ghcr.io/openappsec/agent:${APPSEC_VERSION:-latest}
+    container_name: appsec-agent
+    environment:
+      - SHARED_STORAGE_HOST=appsec-shared-storage
+      - LEARNING_HOST=appsec-smartsync
+      - TUNING_HOST=appsec-tuning-svc
+      - https_proxy=${APPSEC_HTTPS_PROXY}
+      - user_email=${APPSEC_USER_EMAIL}
+      - AGENT_TOKEN=${APPSEC_AGENT_TOKEN}
+      - autoPolicyLoad=${APPSEC_AUTO_POLICY_LOAD:-true}
+      - registered_server=NGINX
+    ipc: host
+    restart: unless-stopped
+    volumes:
+      - ${APPSEC_CONFIG:-./appsec-config}:/etc/cp/conf
+      - ${APPSEC_DATA:-./appsec-data}:/etc/cp/data
+      - ${APPSEC_LOGS:-./appsec-logs}:/var/log/nano_agent
+      - ${APPSEC_LOCALCONFIG:-./appsec-localconfig}:/ext/appsec
+      - shm-volume:/dev/shm/check-point
+    command: /cp-nano-agent
+
+  appsec-nginx:
+    image: ghcr.io/openappsec/nginx-attachment:${APPSEC_VERSION:-latest}
+    container_name: appsec-nginx
+    ipc: host
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ${NGINX_CONFIG:-./configurations/nginx}:/etc/nginx/conf.d
+      - shm-volume:/dev/shm/check-point
+    networks:
+      macvlan-lab:
+        ipv4_address: 192.168.1.116
+
+volumes:
+  shm-volume:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+
+networks:
+  macvlan-lab:
+    external: true
+    name: macvlan-lab
