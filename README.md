@@ -55,6 +55,13 @@ Full details: [Network Architecture](architecture/architecture.md)
 
 ---
 
+
+
+https://github.com/user-attachments/assets/67719454-9bb3-4378-b149-eafa6b9a8908
+
+
+
+
 ## Components
 
 | Component | Image / Tool | Role |
