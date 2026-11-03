@@ -9,8 +9,8 @@ It receives incoming HTTP requests and forwards them to the
 appropriate backend based on the local IP address that received
 the request.
 
-For the Juice Shop frontend, NGINX is integrated with
-open-appsec to provide an application security inspection layer.
+NGINX is integrated with open-appsec to provide an application
+security inspection layer for both frontends.
 
 ## 2. Frontend and Backend Architecture
 
@@ -35,7 +35,29 @@ map $server_addr $backend {
     192.168.1.116 192.168.1.117:3000;
     192.168.1.220 192.168.1.118:80;
 }
+```
 
+Complete server block (`configurations/nginx/default.conf`):
+
+```nginx
+server {
+    listen 80 default_server;
+    server_name _;
+
+    location / {
+        proxy_pass http://$backend;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
 
 For example:
 
@@ -70,12 +92,15 @@ NGINX configuration file.
 
 ## 6. Security Considerations
 
-The Juice Shop frontend at 192.168.1.116 uses the
-open-appsec and NGINX integration.
+Both frontends pass through the open-appsec inspection path:
 
-The additional DVWA frontend at 192.168.1.220 uses
-NGINX reverse proxy routing. Its open-appsec inspection
-path has not been independently verified.
+- 192.168.1.116 (Juice Shop): a custom Snort signature detects and
+  blocks a matching SQL injection request.
+- 192.168.1.220 (DVWA): custom diagnostic signatures produced Web Snort
+  events with action Prevent.
+
+See [Custom Snort Rules](../detection/custom-snort-rules.md) for the
+evidence and test method.
 
 Requests are inspected and potentially blocked only when
 they traverse an active open-appsec inspection path with

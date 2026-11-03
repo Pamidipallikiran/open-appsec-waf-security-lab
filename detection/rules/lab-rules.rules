@@ -1,0 +1,18 @@
+# open-appsec WAF Security Lab - custom Snort 3 signatures
+# For isolated lab use. Required keywords for open-appsec: msg, flow, service.
+
+# --- Verified on Juice Shop ---------------------------------------------
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Lab SQL Injection Attempt"; flow:to_server,established; service:http; http_raw_uri; content:"q="; pcre:"/q=.*%27\+OR\+1%3D1--/i"; sid:1000001; rev:1;)
+
+# --- Verified on DVWA (diagnostic rules) --------------------------------
+alert tcp any any -> any any (msg:"LAB TEST - Referer Header Match"; flow:to_server,established; service:http; http_header; content:"Referer:"; content:"<svg"; sid:1000030; rev:1;)
+alert tcp any any -> any any (msg:"LAB TEST - Referer Onload Match"; flow:to_server,established; service:http; http_header; content:"Referer:"; content:"onload"; sid:1000031; rev:1;)
+
+# --- Under investigation: combined rule (candidate form) ----------------
+alert tcp any any -> any any (msg:"LAB XSS - SVG Onload Referer"; flow:to_server,established; service:http; http_header; content:"Referer:",nocase; content:"<svg",nocase; content:"onload",nocase; sid:1000032; rev:2;)
+
+# --- Bisection rules: load only while diagnosing ------------------------
+#alert tcp any any -> any any (msg:"T1 three contents no nocase"; flow:to_server,established; service:http; http_header; content:"Referer:"; content:"aaa1"; content:"bbb1"; sid:1000041; rev:1;)
+#alert tcp any any -> any any (msg:"T2 nocase single"; flow:to_server,established; service:http; http_header; content:"Referer:"; content:"aaa2",nocase; sid:1000042; rev:1;)
+#alert tcp any any -> any any (msg:"T3 nocase double"; flow:to_server,established; service:http; http_header; content:"Referer:"; content:"aaa3",nocase; content:"bbb3",nocase; sid:1000043; rev:1;)
+#alert tcp any any -> any any (msg:"T4 field referer"; flow:to_server,established; service:http; http_header:field referer; content:"aaa4",nocase; content:"bbb4",nocase; sid:1000044; rev:1;)

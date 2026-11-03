@@ -102,7 +102,37 @@ tuning, and PostgreSQL are not included in this core template.
 Do not run the template alongside an existing deployment
 that uses the same container names or static IP addresses.
 
-## 7. Security Considerations
+## 7. Setup Steps
+
+Reference commands for rebuilding the lab. Adjust the parent interface,
+subnet, gateway and addresses to your host.
+
+1. Create the macvlan network used by all lab containers:
+
+       sudo docker network create -d macvlan \
+         --subnet=192.168.1.0/24 --gateway=192.168.1.99 \
+         -o parent=ens18 macvlan-lab
+
+2. Start the backend applications on fixed addresses:
+
+       sudo docker run -d --name juice-shop --network macvlan-lab \
+         --ip 192.168.1.117 --restart unless-stopped bkimminich/juice-shop
+       sudo docker run -d --name dvwa --network macvlan-lab \
+         --ip 192.168.1.118 --restart unless-stopped vulnerables/web-dvwa
+
+3. Create the local environment file and add your own agent token:
+
+       cp .env.example .env
+
+4. Validate and start the open-appsec services:
+
+       sudo docker compose --env-file .env config --quiet
+       sudo docker compose up -d
+
+Note: a macvlan parent host cannot reach its own macvlan containers
+directly. Test from another machine on the 192.168.1.0/24 network.
+
+## 8. Security Considerations
 
 - Never publish agent tokens or environment credentials.
 - Do not commit runtime data or sensitive configuration.
@@ -111,7 +141,7 @@ that uses the same container names or static IP addresses.
 - Verify that application traffic traverses the WAF inspection path.
 - Detection and prevention depend on the active security policy.
 
-## 8. Verification Commands
+## 9. Verification Commands
 
 List running containers:
 
