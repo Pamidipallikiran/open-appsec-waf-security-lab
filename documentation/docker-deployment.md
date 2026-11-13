@@ -117,9 +117,16 @@ The optional SOAR reverse-proxy hostnames are:
 
 | Hostname | Backend service |
 |---|---|
-| `thehive.lab.local` | 192.168.1.114:9000 |
-| `cortex.lab.local` | 192.168.1.114:9001 |
-| `misp.lab.local` | 192.168.1.114:443 (HTTPS) |
+| `thehive.lab.local` | 192.168.1.121:9000 |
+| `cortex.lab.local` | 192.168.1.121:9001 |
+| `misp.lab.local` | 192.168.1.121:443 (HTTPS) |
+
+The optional TheHive/Cortex NGINX configuration also defines a direct
+IP-based listener at `192.168.1.116:9000`, forwarding to
+`192.168.1.121:9000`. This endpoint has returned HTTP 200 in the lab.
+The planned frontend address `192.168.1.114:9000` is not yet deployed
+or verified. HTTP reachability alone does not establish WAF inspection
+or prevention.
 
 These SOAR routes are optional examples and do not mean that the SOAR services are deployed by this repository Compose template.
 

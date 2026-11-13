@@ -55,13 +55,29 @@ The default mapping sends unmatched hostnames to Juice Shop. The explicit hostna
 
 ## 4. SOAR Virtual Hosts
 
-The extended lab deployment also uses NGINX virtual hosts to provide access to applications running on the separate SOAR VM (`192.168.1.114`).
+The extended lab deployment also uses NGINX virtual hosts to provide access to applications running on the separate SOAR VM (`192.168.1.121`).
 
 | Hostname | Upstream |
 |---|---|
-| `thehive.lab.local` | `http://192.168.1.114:9000` |
-| `cortex.lab.local` | `http://192.168.1.114:9001` |
-| `misp.lab.local` | `https://192.168.1.114:443` |
+| `thehive.lab.local` | `http://192.168.1.121:9000` |
+| `cortex.lab.local` | `http://192.168.1.121:9001` |
+| `misp.lab.local` | `https://192.168.1.121:443` |
+
+### Direct TheHive IP-based access
+
+The optional TheHive/Cortex configuration also includes a dedicated
+NGINX listener on port `9000` for IP-based access:
+
+| Client URL (current frontend) | NGINX upstream |
+|---|---|
+| `http://192.168.1.116:9000` | `http://192.168.1.121:9000` |
+
+The frontend address `.116` is the currently configured WAF NGINX
+container address. The SOAR backend is `.121`. The planned frontend
+address `.114` has not yet been deployed or verified.
+
+This listener provides reverse-proxy reachability. Confirm open-appsec
+inspection and prevention separately through the security event logs.
 
 These are optional reverse-proxy examples stored under `configurations/nginx/optional/`. They are not automatically loaded by the core NGINX configuration. Review and configure the required certificates and hostname resolution before enabling them.
 

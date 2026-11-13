@@ -49,7 +49,7 @@ flowchart TB
         NGINX --> DVWA
     end
 
-    subgraph SOARVM["VM 2 — SOAR SERVER · 192.168.1.114"]
+    subgraph SOARVM["VM 2 — SOAR SERVER · 192.168.1.121"]
         THEHIVE["TheHive :9000"]
         CORTEX["Cortex :9001"]
         MISP["MISP HTTPS :443"]
@@ -76,13 +76,13 @@ validation boundaries.
 | WAF NGINX frontend | `192.168.1.116` | HTTP / HTTPS virtual hosts |
 | Juice Shop backend | `192.168.1.117:3000` | Through WAF |
 | DVWA backend | `192.168.1.118:80` | Through WAF frontend `192.168.1.116` |
-| SOAR VM | `192.168.1.114` | Separate VM |
-| TheHive | `192.168.1.114:9000` | `thehive.lab.local` |
-| Cortex | `192.168.1.114:9001` | `cortex.lab.local` |
-| MISP | `192.168.1.114:443` | `misp.lab.local` |
+| SOAR VM | `192.168.1.121` | Separate VM |
+| TheHive | `192.168.1.121:9000` | `thehive.lab.local` |
+| Direct TheHive access | `192.168.1.116:9000` | Verified WAF frontend listener; forwards to SOAR VM |
+| Cortex | `192.168.1.121:9001` | `cortex.lab.local` |
+| MISP | `192.168.1.121:443` | `misp.lab.local` |
 
-The current SOAR VM address is `192.168.1.114`; do not use the
-previous address `192.168.1.112`.
+The current SOAR VM address is `192.168.1.121`. Its previous address was `192.168.1.114`.
 
 ### Hostname resolution
 
@@ -191,7 +191,7 @@ Snapshot date: 2026-11-13.
 | NGINX frontend | `192.168.1.116` |
 | OWASP Juice Shop | `192.168.1.117:3000` |
 | DVWA | `192.168.1.118:80` |
-| SOAR host | `192.168.1.114` |
+| SOAR host | `192.168.1.121` |
 | Docker network | `macvlan-lab` |
 
 The NGINX hostname routing for Juice Shop and DVWA was verified. The NGINX configuration syntax check also passed.

@@ -14,16 +14,16 @@ VM's Docker Compose project.
 | Host | Address | Purpose |
 |---|---|---|
 | WAF VM | `192.168.1.116` | NGINX + open-appsec frontend |
-| SOAR VM | `192.168.1.114` | TheHive, Cortex, and MISP backends |
+| SOAR VM | `192.168.1.121` | TheHive, Cortex, and MISP backends |
 
 | Public lab hostname | NGINX upstream |
 |---|---|
-| `thehive.lab.local` | `http://192.168.1.114:9000` |
-| `cortex.lab.local` | `http://192.168.1.114:9001` |
-| `misp.lab.local` | `https://192.168.1.114:443` |
+| `thehive.lab.local` | `http://192.168.1.121:9000` |
+| `cortex.lab.local` | `http://192.168.1.121:9001` |
+| `misp.lab.local` | `https://192.168.1.121:443` |
 
-The SOAR VM address is currently `192.168.1.114`. An older address,
-`192.168.1.112`, is no longer the SOAR VM address and should not be
+The SOAR VM address is currently `192.168.1.121`. An older address,
+`192.168.1.114`, is no longer the SOAR VM address and should not be
 copied into new proxy configuration.
 
 ## 3. Client name resolution
@@ -45,8 +45,8 @@ configuration.
 
 The active WAF VM configuration uses separate NGINX server blocks:
 
-- `thehive.lab.local` proxies to `http://192.168.1.114:9000`.
-- `cortex.lab.local` proxies to `http://192.168.1.114:9001`.
+- `thehive.lab.local` proxies to `http://192.168.1.121:9000`.
+- `cortex.lab.local` proxies to `http://192.168.1.121:9001`.
 - `misp.lab.local` proxies to the SOAR VM's HTTPS service on port 443.
 
 TheHive and Cortex proxy blocks preserve the Host header, original

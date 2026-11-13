@@ -28,7 +28,7 @@ flowchart TB
         DVWA["DVWA<br/>192.168.1.118:80"]
     end
 
-    subgraph SOAR["SOAR Host - 192.168.1.114"]
+    subgraph SOAR["SOAR Host - 192.168.1.121"]
         TheHive["TheHive :9000"]
         Cortex["Cortex :9001"]
         MISP["MISP :443"]
@@ -53,7 +53,7 @@ The open-appsec agent and NGINX frontend are separate containers. The frontend i
 | NGINX frontend | 192.168.1.116 | Client-facing WAF entry point |
 | Juice Shop | 192.168.1.117:3000 | Vulnerable application backend |
 | DVWA | 192.168.1.118:80 | Vulnerable application backend |
-| SOAR host | 192.168.1.114 | TheHive, Cortex and MISP |
+| SOAR host | 192.168.1.121 | TheHive, Cortex and MISP |
 
 ### Hostname routing
 
@@ -61,11 +61,24 @@ The open-appsec agent and NGINX frontend are separate containers. The frontend i
 |---|---|---|
 | juice.lab.local | 192.168.1.116:80 | 192.168.1.117:3000 |
 | dvwa.lab.local | 192.168.1.116:80 | 192.168.1.118:80 |
-| thehive.lab.local | 192.168.1.116 | 192.168.1.114:9000 (optional) |
-| cortex.lab.local | 192.168.1.116 | 192.168.1.114:9001 (optional) |
-| misp.lab.local | 192.168.1.116 | 192.168.1.114:443 (optional HTTPS) |
+| thehive.lab.local | 192.168.1.116:80 | 192.168.1.121:9000 |
+| cortex.lab.local | 192.168.1.116:80 | 192.168.1.121:9001 |
+| misp.lab.local | 192.168.1.116 | 192.168.1.121:443 (optional HTTPS; pending validation) |
 
 The optional SOAR routes require their example configurations to be reviewed and enabled separately.
+
+### Direct TheHive IP-based access
+
+| Client endpoint | Frontend listener | SOAR backend | Status |
+|---|---|---|---|
+| `192.168.1.116:9000` | WAF NGINX container | `192.168.1.121:9000` | Configured and HTTP 200 verified |
+| `192.168.1.114:9000` | Planned frontend address | `192.168.1.121:9000` | Not yet deployed or verified |
+
+The direct listener is defined in the optional
+`thehive-cortex.conf.example` configuration. HTTP reachability does not
+by itself demonstrate open-appsec inspection or prevention.
+
+
 
 ## 4. Docker Network Configuration
 
@@ -118,9 +131,9 @@ Historical DVWA diagnostic Web Snort events are documented in [Custom Snort Rule
 
 The separate SOAR host provides:
 
-- TheHive at `192.168.1.114:9000`
-- Cortex at `192.168.1.114:9001`
-- MISP at `192.168.1.114:443`
+- TheHive at `192.168.1.121:9000`
+- Cortex at `192.168.1.121:9001`
+- MISP at `192.168.1.121:443`
 
 Optional NGINX examples are stored under `configurations/nginx/optional/`.
 
