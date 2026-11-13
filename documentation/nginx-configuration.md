@@ -2,33 +2,25 @@
 
 ## 1. Overview
 
-NGINX acts as a reverse proxy between clients and backend
-web applications.
+NGINX is the client-facing reverse proxy on the WAF VM. The open-appsec
+NGINX attachment integrates request processing with the local open-appsec
+agent. NGINX routes permitted requests to the relevant backend.
 
-It receives incoming HTTP requests and forwards them to the
-appropriate backend based on the local IP address that received
-the request.
+The extended deployment also uses name-based virtual hosts for TheHive,
+Cortex, and MISP, which remain on a separate SOAR VM. See
+[SOAR Reverse-Proxy Integration](soar-integration.md).
 
-NGINX is integrated with open-appsec to provide an application
-security inspection layer for both frontends.
+## 2. Core web-application routing
 
-## 2. Frontend and Backend Architecture
+The repository's reproducible core example uses a local-address map:
 
-The frontend IP addresses are used by clients to access
-the applications. The backend IP addresses identify the
-servers hosting the applications.
+| Frontend IP | Backend application | Backend address | Current runtime note |
+|---|---|---|---|
+| 192.168.1.116 | OWASP Juice Shop | 192.168.1.117:3000 | Active NGINX frontend |
+| 192.168.1.220 | DVWA | 192.168.1.118:80 | Mapping exists; .220 is not attached to the current active NGINX container |
 
-| Frontend IP | Backend Application | Backend Address |
-|---|---|---|
-| 192.168.1.116 | OWASP Juice Shop | 192.168.1.117:3000 |
-| 192.168.1.220 | DVWA | 192.168.1.118:80 |
-
-## 3. Backend Selection
-
-The NGINX `map` directive uses `$server_addr` to identify
-the local IP address that received the request.
-
-Configuration:
+The map directive selects the upstream based on the local IP address
+that received the request:
 
 ```nginx
 map $server_addr $backend {
@@ -37,7 +29,9 @@ map $server_addr $backend {
 }
 ```
 
-Complete server block (`configurations/nginx/default.conf`):
+The server block in
+[`configurations/nginx/default.conf`](../configurations/nginx/default.conf)
+uses the selected upstream:
 
 ```nginx
 server {
@@ -59,52 +53,86 @@ server {
 }
 ```
 
-For example:
+For example, a request received on `192.168.1.116` is routed to
+`192.168.1.117:3000`. The DVWA mapping is usable only when the
+`192.168.1.220` frontend is actually assigned to an active NGINX
+instance.
 
-1. A client accesses 192.168.1.116.
-2. NGINX receives the request on that frontend address.
-3. The map directive selects 192.168.1.117:3000.
-4. The request is forwarded to the Juice Shop backend.
+## 3. SOAR virtual hosts
 
-The same routing logic sends requests received on
-192.168.1.220 to the DVWA backend at 192.168.1.118:80.
+The deployed WAF VM also has separate virtual hosts for the SOAR
+applications. They route by hostname rather than by the core
+`$server_addr` backend map:
 
-## 4. Important NGINX Directives
+| Hostname | Upstream |
+|---|---|
+| `thehive.lab.local` | `http://192.168.1.114:9000` |
+| `cortex.lab.local` | `http://192.168.1.114:9001` |
+| `misp.lab.local` | `https://192.168.1.114:443` |
 
-- `map`: Selects a backend based on the frontend IP.
+The live configuration is maintained on the WAF VM under
+`/home/kiranwaf/open-appsec-lab/nginx-config/`. The repository does not
+currently include a byte-for-byte copy of every live virtual-host file;
+the core `default.conf` is a reproducible Juice Shop / DVWA example.
+Refer to [SOAR Reverse-Proxy Integration](soar-integration.md) for
+routing behavior, DNS entries, connectivity checks, and TLS notes.
+
+The SOAR VM's current IP is `192.168.1.114`. Do not use the old
+`192.168.1.112` address.
+
+## 4. Important NGINX directives
+
+- `map`: Selects a backend based on the frontend IP address.
 - `proxy_pass`: Forwards requests to the selected backend.
 - `proxy_http_version`: Sets the HTTP version used upstream.
-- `proxy_set_header`: Passes client and request information
-  to the backend.
+- `proxy_set_header`: Passes client and request information upstream.
 - `X-Real-IP`: Passes the original client IP address.
 - `X-Forwarded-For`: Maintains the forwarded client IP chain.
 - `X-Forwarded-Proto`: Passes the original request protocol.
 
-## 5. Configuration Validation
+The SOAR virtual hosts additionally preserve the Host header and
+forwarded host information, support WebSocket/HTTP upgrade headers where
+needed, and use an extended read timeout for long-running requests.
 
-The active configuration was inspected inside the running
-NGINX container using:
+## 5. Configuration validation
 
-    sudo docker exec appsec-nginx nginx -T
+Inspect the configuration loaded by the running NGINX container:
 
-The loaded configuration matched the repository's
-NGINX configuration file.
+```bash
+sudo docker exec appsec-nginx nginx -t
+sudo docker exec appsec-nginx nginx -T
+```
 
-## 6. Security Considerations
+A successful syntax test proves that NGINX accepts the configuration;
+it does not prove that a backend is reachable or that open-appsec
+blocked a malicious request.
 
-Both frontends pass through the open-appsec inspection path:
+## 6. WAF verification
 
-- 192.168.1.116 (Juice Shop): a custom Snort signature detects and
-  blocks a matching SQL injection request.
-- 192.168.1.220 (DVWA): custom diagnostic signatures produced Web Snort
-  events with action Prevent.
+To establish that a request was inspected and acted on:
 
-See [Custom Snort Rules](../detection/custom-snort-rules.md) for the
-evidence and test method.
+1. Send a controlled test request through the WAF frontend.
+2. Find the matching event in the open-appsec portal or authoritative
+   event log.
+3. Check the Practice SubType, Protection Name, and Security Action.
+4. For a prevention claim, verify the action is **Prevent** and confirm
+   the request did not reach the backend.
 
-Requests are inspected and potentially blocked only when
-they traverse an active open-appsec inspection path with
-an appropriate security policy.
+Historical custom Snort tests for Juice Shop and DVWA are documented in
+[Custom Snort Rules](../detection/custom-snort-rules.md). The current
+runtime's event-level verdict should be rechecked before reporting
+detection or prevention as verified.
 
-NGINX reverse proxy functionality alone does not prove
-that a request has been detected or blocked by the WAF.
+## 7. Security considerations
+
+- Restrict direct access to backend applications so clients cannot
+  bypass the intended WAF path.
+- Keep SOAR backend ports restricted to the WAF VM and trusted
+  administrators.
+- Use trusted TLS certificates and enable upstream certificate
+  verification. The current MISP lab proxy disables upstream TLS
+  verification because of its self-signed/expired certificate; this is
+  not a production configuration.
+- Do not commit secrets, API keys, agent tokens, or private keys.
+- Reverse-proxy connectivity alone is not evidence of WAF inspection,
+  detection, or prevention.
