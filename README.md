@@ -46,7 +46,7 @@ flowchart TB
             DVWA["DVWA<br/>192.168.1.118:80"]
         end
         NGINX --> JUICE
-        NGINX -.->|"Frontend .220 mapping;<br/>not active in current runtime"| DVWA
+        NGINX --> DVWA
     end
 
     subgraph SOARVM["VM 2 — SOAR SERVER · 192.168.1.114"]
@@ -75,7 +75,7 @@ validation boundaries.
 |---|---|---|
 | WAF NGINX frontend | `192.168.1.116` | HTTP / HTTPS virtual hosts |
 | Juice Shop backend | `192.168.1.117:3000` | Through WAF |
-| DVWA backend | `192.168.1.118:80` | Through WAF; frontend .220 currently pending |
+| DVWA backend | `192.168.1.118:80` | Through WAF frontend `192.168.1.116` |
 | SOAR VM | `192.168.1.114` | Separate VM |
 | TheHive | `192.168.1.114:9000` | `thehive.lab.local` |
 | Cortex | `192.168.1.114:9001` | `cortex.lab.local` |
@@ -83,6 +83,20 @@ validation boundaries.
 
 The current SOAR VM address is `192.168.1.114`; do not use the
 previous address `192.168.1.112`.
+
+### Hostname resolution
+
+For the recorded lab deployment, configure DNS or the client hosts file:
+
+```text
+192.168.1.116 juice.lab.local
+192.168.1.116 dvwa.lab.local
+192.168.1.116 thehive.lab.local
+192.168.1.116 cortex.lab.local
+192.168.1.116 misp.lab.local
+```
+
+TheHive, Cortex and MISP hostnames require their optional NGINX reverse-proxy configurations to be enabled. These entries are examples for this lab; adapt them to your network.
 
 ## Components
 
@@ -111,7 +125,7 @@ cd open-appsec-waf-security-lab
 cp .env.example .env
 nano .env                       # add your own agent token and e-mail
 
-docker compose --env-file .env config --quiet   # validate
+docker compose --env-file .env.example -f compose.yaml config --quiet
 docker compose up -d
 docker compose ps
 ```
@@ -133,7 +147,7 @@ Do not run the WAF Compose template on the SOAR VM.
 | MISP reverse proxy | Verified | Expected login redirect through HTTPS WAF frontend |
 | open-appsec NGINX module / attachment | Verified | Module loaded and attachment registration observed |
 | WAF detection / prevention on the current expanded runtime | Needs event-level validation | Confirm the matching portal event and action; an HTTP response alone is insufficient |
-| DVWA frontend .220 | Pending in current runtime | Backend map exists, but .220 is not attached to the active NGINX container |
+| DVWA reverse proxy | Verified (2026-11-13) | HTTP 302 redirect to `login.php` through frontend `192.168.1.116`; confirms routing, not WAF detection or prevention |
 | Automatic WAF-event-to-TheHive case creation | Not verified | Treat as a future integration until a controlled end-to-end test succeeds |
 | TheHive-to-Cortex / MISP integrations | Validate separately | Reverse-proxy access does not prove application-level integration |
 
@@ -142,6 +156,60 @@ Historical custom Snort signature tests are documented in
 controlled tests against the current runtime and confirm the event's
 Practice SubType, Protection Name, and Security Action before reporting
 a detection or prevention result.
+
+### Reproduce the routing checks
+
+Check NGINX configuration syntax:
+
+```bash
+docker exec appsec-nginx nginx -t
+```
+
+Test Juice Shop routing:
+
+```bash
+curl -sS -D - -o /dev/null --resolve juice.lab.local:80:192.168.1.116 http://juice.lab.local/
+```
+
+Test DVWA routing:
+
+```bash
+curl -sS -D - -o /dev/null --resolve dvwa.lab.local:80:192.168.1.116 http://dvwa.lab.local/
+```
+
+Recorded checks on 2026-11-13 returned HTTP 200 for Juice Shop and HTTP 302 to `login.php` for DVWA. These checks verify routing and reachability only; they do not independently prove WAF detection or prevention.
+
+For WAF validation, inspect the open-appsec event and confirm its protection details, indicators, practice subtype and security action. See [Custom Snort Rules](detection/custom-snort-rules.md).
+
+## Recorded Live Lab Status
+
+Snapshot date: 2026-11-13.
+
+| Component | Recorded address |
+|---|---|
+| WAF host | `192.168.1.113` |
+| NGINX frontend | `192.168.1.116` |
+| OWASP Juice Shop | `192.168.1.117:3000` |
+| DVWA | `192.168.1.118:80` |
+| SOAR host | `192.168.1.114` |
+| Docker network | `macvlan-lab` |
+
+The NGINX hostname routing for Juice Shop and DVWA was verified. The NGINX configuration syntax check also passed.
+
+TheHive, Cortex and MISP proxy reachability checks were recorded separately. MISP HTTPS testing used `curl -k`, which skips certificate verification. These checks do not establish complete SOAR integration.
+
+Historical WAF detection tests are documented separately and must not be treated as fresh tests performed on this snapshot date.
+
+## Optional SOAR Reverse Proxies
+
+Optional configurations are provided as examples:
+
+- `configurations/nginx/optional/thehive-cortex.conf.example`
+- `configurations/nginx/optional/misp.conf.example`
+
+They are not loaded automatically by the default NGINX configuration. Review and adapt upstream addresses, hostnames and certificate paths before enabling them.
+
+The MISP example disables upstream TLS certificate verification as a temporary lab workaround. This is not suitable for production. Configure a trusted CA certificate and enable upstream verification before production use.
 
 ## Documentation
 
@@ -161,7 +229,10 @@ open-appsec-waf-security-lab/
 │   └── architecture.md
 ├── configurations/
 │   └── nginx/
-│       └── default.conf
+│       ├── default.conf
+│       └── optional/
+│           ├── misp.conf.example
+│           └── thehive-cortex.conf.example
 ├── detection/
 │   ├── custom-snort-rules.md
 │   └── rules/

@@ -1,204 +1,165 @@
-# Overall WAF and SOAR Lab Architecture
+# open-appsec WAF Lab Architecture
 
-## 1. Purpose
+## 1. Overview
 
-This document describes the extended lab: an open-appsec-protected NGINX
-reverse-proxy VM in front of vulnerable web applications and a separate
-SOAR VM hosting TheHive, Cortex, and MISP.
+This lab integrates open-appsec with NGINX to inspect HTTP requests before forwarding permitted traffic to vulnerable web applications.
 
-The deployment is split across two virtual machines. The open-appsec
-agent and NGINX attachment run on the WAF VM. TheHive, Cortex, and MISP
-remain on the SOAR VM; they are published through NGINX virtual hosts
-on the WAF VM.
+The deployment uses one NGINX frontend with hostname-based routing to two backends:
 
-> **Scope and accuracy:** This is the observed lab topology and its
-> documented routing. A working reverse-proxy response confirms
-> connectivity, not a security verdict. Do not describe a request as
-> blocked unless the corresponding open-appsec event or Prevent verdict
-> has been verified.
+- OWASP Juice Shop
+- Damn Vulnerable Web Application (DVWA)
 
-## 2. High-level architecture
+Optional reverse-proxy configurations provide access to TheHive, Cortex and MISP hosted on the separate SOAR machine.
+
+## 2. Network Architecture
 
 ```mermaid
 flowchart TB
-    CLIENT["Browser / Security Tester"]
-    ANALYST["SOC Analyst"]
-    PORTAL["open-appsec Cloud Management Portal"]
+    Client["Web Browser / Security Tester"]
 
-    subgraph VM1["VM 1 — WAF SERVER"]
-        direction TB
-        FRONT["NGINX Reverse Proxy<br/>192.168.1.116"]
-        ATTACH["open-appsec NGINX Attachment"]
-        AGENT["open-appsec Agent<br/>Inspection Engine + Policy"]
-        FRONT <--> |"Shared memory / IPC"| ATTACH
-        ATTACH <--> AGENT
-
-        subgraph WEBAPPS["Web Application Backends"]
-            JUICE["OWASP Juice Shop<br/>192.168.1.117:3000"]
-            DVWA["DVWA<br/>192.168.1.118:80"]
-        end
-
-        FRONT -->|"juice.lab.local"| JUICE
-        FRONT -.->|"DVWA mapping configured;<br/>frontend .220 not active in current runtime"| DVWA
+    subgraph WAFVM["WAF Host - 192.168.1.113"]
+        Agent["open-appsec Agent"]
+        Frontend["NGINX + open-appsec Frontend<br/>192.168.1.116"]
+        Agent <-->|"Agent integration"| Frontend
     end
 
-    subgraph VM2["VM 2 — SOAR SERVER"]
-        direction TB
-        SOARHOST["SOAR VM<br/>192.168.1.114"]
-        THEHIVE["TheHive<br/>127.0.0.1 / host port 9000"]
-        CORTEX["Cortex<br/>127.0.0.1 / host port 9001"]
-        MISP["MISP<br/>HTTPS host port 443"]
-        SOARHOST --> THEHIVE
-        SOARHOST --> CORTEX
-        SOARHOST --> MISP
+    subgraph MACVLAN["Docker macvlan - 192.168.1.0/24"]
+        Juice["OWASP Juice Shop<br/>192.168.1.117:3000"]
+        DVWA["DVWA<br/>192.168.1.118:80"]
     end
 
-    CLIENT -->|"HTTP / HTTPS"| FRONT
-    ANALYST -->|"Web UI via WAF"| FRONT
-    FRONT -->|"thehive.lab.local → :9000"| THEHIVE
-    FRONT -->|"cortex.lab.local → :9001"| CORTEX
-    FRONT -->|"misp.lab.local → HTTPS :443"| MISP
-    AGENT <-->|"Policy and telemetry"| PORTAL
-    THEHIVE -.->|"Analyzer / responder integration<br/>(validate separately)"| CORTEX
-    THEHIVE -.->|"Threat-intelligence integration<br/>(validate separately)"| MISP
+    subgraph SOAR["SOAR Host - 192.168.1.114"]
+        TheHive["TheHive :9000"]
+        Cortex["Cortex :9001"]
+        MISP["MISP :443"]
+    end
+
+    Client -->|"HTTP / Host: juice.lab.local"| Frontend
+    Client -->|"HTTP / Host: dvwa.lab.local"| Frontend
+    Frontend -->|"juice.lab.local"| Juice
+    Frontend -->|"dvwa.lab.local"| DVWA
+    Frontend -.->|"Optional reverse proxy"| TheHive
+    Frontend -.->|"Optional reverse proxy"| Cortex
+    Frontend -.->|"Optional HTTPS reverse proxy"| MISP
 ```
 
-The open-appsec cloud portal manages policy and receives telemetry; it is
-not the inline destination for application traffic. NGINX is the
-client-facing reverse proxy. The open-appsec NGINX attachment connects
-NGINX request processing to the local agent through shared-memory IPC.
+The open-appsec agent and NGINX frontend are separate containers. The frontend is attached to the macvlan network, while the agent uses the deployment shared integration configuration.
 
-## 3. VM and network inventory
+## 3. Network Details
 
-### VM 1 — WAF server
-
-| Component | Address | Role |
+| Component | Address | Purpose |
 |---|---|---|
-| NGINX / open-appsec frontend | `192.168.1.116` | Client-facing reverse proxy and WAF integration |
-| Juice Shop | `192.168.1.117:3000` | Intentionally vulnerable web application |
-| DVWA | `192.168.1.118:80` | Intentionally vulnerable web application |
-| Additional DVWA frontend mapping | `192.168.1.220` | Configured in the backend map; not attached to the current active NGINX container |
+| WAF host | 192.168.1.113 | Ubuntu host running the WAF deployment |
+| NGINX frontend | 192.168.1.116 | Client-facing WAF entry point |
+| Juice Shop | 192.168.1.117:3000 | Vulnerable application backend |
+| DVWA | 192.168.1.118:80 | Vulnerable application backend |
+| SOAR host | 192.168.1.114 | TheHive, Cortex and MISP |
 
-The WAF VM's active NGINX configuration also contains virtual hosts
-for TheHive, Cortex, and MISP. The exact live configuration is maintained
-on the VM under `/home/kiranwaf/open-appsec-lab/nginx-config/`.
-The repository's `configurations/nginx/default.conf` remains the
-reproducible core Juice Shop / DVWA example.
+### Hostname routing
 
-### VM 2 — SOAR server
-
-| Service | SOAR backend | Published hostname through WAF |
+| Hostname | Frontend | Backend |
 |---|---|---|
-| TheHive | `192.168.1.114:9000` | `thehive.lab.local` |
-| Cortex | `192.168.1.114:9001` | `cortex.lab.local` |
-| MISP | `192.168.1.114:443` (HTTPS) | `misp.lab.local` |
+| juice.lab.local | 192.168.1.116:80 | 192.168.1.117:3000 |
+| dvwa.lab.local | 192.168.1.116:80 | 192.168.1.118:80 |
+| thehive.lab.local | 192.168.1.116 | 192.168.1.114:9000 (optional) |
+| cortex.lab.local | 192.168.1.116 | 192.168.1.114:9001 (optional) |
+| misp.lab.local | 192.168.1.116 | 192.168.1.114:443 (optional HTTPS) |
 
-The SOAR VM's current address is `192.168.1.114`. Do not use the
-previous address `192.168.1.112` in new configuration.
+The optional SOAR routes require their example configurations to be reviewed and enabled separately.
 
-### Client name resolution
+## 4. Docker Network Configuration
 
-On each client that needs to use the lab hostnames, create the
-appropriate local DNS records or hosts-file entries pointing to the
-WAF frontend address:
+Recorded macvlan configuration:
 
-| Hostname | WAF address |
-|---|---|
-| `juice.lab.local` | `192.168.1.116` |
-| `thehive.lab.local` | `192.168.1.116` |
-| `cortex.lab.local` | `192.168.1.116` |
-| `misp.lab.local` | `192.168.1.116` |
-| `dvwa.lab.local` | `192.168.1.220` — only after that frontend is activated |
+- Network name: `macvlan-lab`
+- Network driver: `macvlan`
+- Subnet: `192.168.1.0/24`
+- Gateway: `192.168.1.99`
+- Parent interface: `ens18`
+- Host macvlan shim: `192.168.1.119/24`
 
-Use the scheme and port configured for each virtual host. TheHive and
-Cortex were tested through HTTP; MISP was tested through HTTPS.
+The macvlan network is external to the repository Compose deployment and must exist before using the Compose template.
 
-## 4. Request and inspection flow
+## 5. Request Inspection Flow
 
-1. A browser resolves the lab hostname to the WAF frontend.
-2. The request reaches NGINX on the WAF VM.
-3. The open-appsec NGINX attachment makes the request available to the
-   local inspection engine through the configured IPC integration.
-4. open-appsec evaluates the request against the policy and protection
-   settings assigned to the asset.
-5. In **Prevent** mode, a request that matches a protection configured
-   to prevent can be blocked. In **Detect** mode, the event can be
-   reported without blocking the request.
-6. Requests allowed by the active policy are routed by the matching
-   NGINX virtual host to the selected backend.
+1. The client resolves the requested lab hostname to the WAF frontend.
+2. NGINX receives the HTTP or HTTPS request.
+3. The open-appsec NGINX attachment connects request processing to the local agent through the configured shared-memory IPC integration.
+4. The agent evaluates the request against the active open-appsec policy and protection settings.
+5. In **Prevent** mode, a matching request can be blocked when the applicable protection is configured to prevent it. In **Detect** mode, an event can be reported without blocking the request.
+6. Requests permitted by the active policy are routed by NGINX to the selected backend.
 7. The backend response returns through NGINX to the client.
 
-The open-appsec cloud portal is used to manage policy and review events.
-A successful HTTP response from an upstream service is not, by itself,
-proof that the WAF inspected the request or that a malicious request
-was detected.
+The open-appsec cloud portal is used to manage policy and review events; it is not the inline destination for application traffic. An HTTP response from a backend does not, by itself, prove that a request was inspected or that an attack was detected.
 
-## 5. Reverse-proxy routing
+## 6. Traffic Flow
 
-| Virtual host | Upstream destination | Protocol to upstream |
-|---|---|---|
-| `juice.lab.local` | `192.168.1.117:3000` | HTTP |
-| `thehive.lab.local` | `192.168.1.114:9000` | HTTP |
-| `cortex.lab.local` | `192.168.1.114:9001` | HTTP |
-| `misp.lab.local` | `192.168.1.114:443` | HTTPS |
-| DVWA frontend `192.168.1.220` | `192.168.1.118:80` | HTTP |
+### OWASP Juice Shop
 
-TheHive, Cortex, and MISP reverse-proxy paths returned expected
-application responses during connectivity testing. MISP uses an
-upstream TLS certificate that is not trusted by the proxy in this lab;
-the current proxy configuration disables upstream certificate
-verification. This is a lab-only compromise. Use a trusted certificate
-and enable verification for production deployments.
+1. The client sends a request to `http://juice.lab.local`.
+2. DNS or the client hosts file resolves the hostname to `192.168.1.116`.
+3. NGINX receives the request through the open-appsec integration.
+4. open-appsec inspects the request according to its active security policy.
+5. NGINX selects `192.168.1.117:3000` using the HTTP Host header.
+6. Permitted traffic is forwarded to Juice Shop. Matching malicious requests can be prevented when the applicable policy is configured to prevent them.
 
-## 6. SOAR investigation workflow
+### DVWA
 
-The intended analyst workflow is:
+1. The client sends a request to `http://dvwa.lab.local`.
+2. DNS or the client hosts file resolves the hostname to `192.168.1.116`.
+3. NGINX receives the request through the open-appsec integration.
+4. open-appsec inspects the request according to its active security policy.
+5. NGINX selects `192.168.1.118:80` using the HTTP Host header.
+6. Permitted traffic is forwarded to DVWA.
 
-```mermaid
-flowchart LR
-    EVENT["WAF detection / security event"]
-    REVIEW["SOC Analyst reviews event"]
-    CASE["Create or update TheHive case"]
-    ANALYZE["Run Cortex analyzers / responders"]
-    INTEL["Enrich and correlate with MISP"]
-    DECISION["Analyst validates findings"]
-    RESPONSE["Document and execute response"]
+Historical DVWA diagnostic Web Snort events are documented in [Custom Snort Rules](../detection/custom-snort-rules.md). They are historical test evidence, not a claim of a new test on the documentation update date.
 
-    EVENT --> REVIEW --> CASE --> ANALYZE --> INTEL --> DECISION --> RESPONSE
-```
+## 7. Optional SOAR Integration
 
-This diagram describes the operational workflow, not an assertion that
-WAF events are automatically forwarded to TheHive. Automatic
-open-appsec-to-TheHive case creation and TheHive/Cortex/MISP
-integrations must each be configured and tested separately.
+The separate SOAR host provides:
 
-## 7. Deployment boundaries
+- TheHive at `192.168.1.114:9000`
+- Cortex at `192.168.1.114:9001`
+- MISP at `192.168.1.114:443`
 
-- The repository's `compose.yaml` deploys the core open-appsec agent
-  and NGINX attachment services only.
-- Juice Shop and DVWA are separate backend containers in the observed
-  lab; they are not created by the core Compose template.
-- TheHive, Cortex, and MISP run on the separate SOAR VM and are not
-  added to the WAF VM's Compose project.
-- Do not merge the two VMs' Compose stacks or reuse their IP addresses.
-- Restrict direct access to backend ports so clients cannot bypass the
-  WAF reverse proxy.
-- Keep agent tokens, API keys, passwords, and TLS private keys out of
-  Git. Use local environment files or a secrets manager.
+Optional NGINX examples are stored under `configurations/nginx/optional/`.
 
-## 8. Validation checklist
+These proxy routes do not by themselves establish an integrated WAF-to-SOAR alert workflow. Application integration and event delivery must be configured and tested separately.
+
+The MISP example currently disables upstream TLS certificate verification as a lab workaround. This must be corrected before production use.
+
+### Intended analyst investigation workflow
+
+The intended workflow after a WAF security event is:
+
+1. The SOC analyst reviews and validates the open-appsec event.
+2. The analyst creates or updates a case in TheHive.
+3. Cortex analyzers or responders can be used for investigation.
+4. MISP can provide threat-intelligence enrichment and correlation.
+5. The analyst validates findings and documents the response.
+
+This describes the intended operational workflow. It does not claim that WAF events are automatically forwarded to TheHive or that TheHive, Cortex and MISP are fully integrated. Each application-level integration must be configured and tested separately.
+
+## 8. Security Considerations
+
+- Use vulnerable applications only in an isolated, authorized lab.
+- Avoid exposing vulnerable backend services directly to untrusted networks.
+- Restrict backend access using suitable network controls.
+- Keep registration tokens, credentials, private keys and certificates out of Git.
+- Detection and prevention depend on the active open-appsec policy.
+- HTTP response codes demonstrate reachability, not proof of WAF detection or prevention.
+- Verify actual security events and their recorded actions when testing protections.
+
+## 9. Validation Checklist
 
 | Validation | Evidence required |
 |---|---|
 | NGINX reverse proxy | Expected application response from each hostname |
 | open-appsec attachment | Module loaded and attachment registered |
-| WAF detection | Matching event in open-appsec portal or authoritative agent event log |
-| WAF prevention | Matching event with Prevent action and request blocked before reaching backend |
-| TheHive / Cortex / MISP UI | Each hostname returns the expected application response |
-| SOAR integrations | Successful test observable or case enrichment in the receiving application |
+| WAF detection | Matching event in the open-appsec portal or authoritative agent event log |
+| WAF prevention | Matching event with Prevent action and evidence that the request was blocked |
+| TheHive, Cortex and MISP interfaces | Expected application response through each configured hostname |
+| SOAR application integrations | Successful test or observable enrichment in the receiving application |
 | Automatic WAF-to-TheHive workflow | A controlled WAF event creates or updates the intended TheHive case |
 
-For deployment-specific configuration and verification commands, see
-[SOAR reverse-proxy integration](../documentation/soar-integration.md),
-[NGINX configuration](../documentation/nginx-configuration.md), and
-[Custom Snort Rules](../detection/custom-snort-rules.md).
+For deployment-specific commands, see [NGINX Configuration](../documentation/nginx-configuration.md), [Docker Deployment](../documentation/docker-deployment.md), [SOAR Integration](../documentation/soar-integration.md), and [Custom Snort Rules](../detection/custom-snort-rules.md).

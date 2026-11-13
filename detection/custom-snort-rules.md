@@ -20,19 +20,21 @@ Reference: [open-appsec - Write Snort Signatures](https://docs.openappsec.io/sno
 
 | SID | Purpose | Asset | Status |
 |---|---|---|---|
-| 1000001 | SQL injection in the `q` parameter | Juice Shop | Verified: detects and blocks |
-| 1000030 | `Referer:` header contains `<svg` | DVWA | Verified: Web Snort event, Prevent |
-| 1000031 | `Referer:` header contains `onload` | DVWA | Verified: Web Snort event, Prevent |
+| 1000001 | SQL injection in the `q` parameter | Juice Shop | Historically verified: detection and blocking reported |
+| 1000030 | `Referer:` header contains `<svg` | DVWA | Historically verified: Web Snort event, Prevent |
+| 1000031 | `Referer:` header contains `onload` | DVWA | Historically verified: Web Snort event, Prevent |
 | 1000032 | `Referer:` header contains `<svg` and `onload` (case-insensitive) | DVWA | Under investigation |
+
+**Evidence note:** The historical signature results above are not fresh detection tests from 13 November 2026. On that date, the lab checks verified hostname-based routing and backend reachability through the shared frontend at `192.168.1.116`. Those HTTP checks do not independently prove that a custom Snort signature matched or blocked a request.
 
 ## 3. Test requests
 
 ```bash
 # 1000030 / 1000031 (DVWA frontend)
-curl -i -H 'Referer: <svg onload=alert(1)>' http://192.168.1.220/
+curl -i -H 'Referer: <svg onload=alert(1)>' http://dvwa.lab.local/
 
 # 1000001 (Juice Shop frontend), request shaped to match the rule's pcre
-curl -i 'http://192.168.1.116/rest/products/search?q=%27+OR+1%3D1--'
+curl -i 'http://juice.lab.local/rest/products/search?q=%27+OR+1%3D1--'
 ```
 
 ## 4. How to confirm a signature matched
@@ -65,18 +67,25 @@ explained. Candidate causes, in order of what to rule out first:
 
 ### Controlled bisection (non-XSS tokens, DVWA only)
 
-Use harmless tokens so the built-in XSS engine cannot interfere, one
-token per rule so a Prevent on one does not hide the others
-(see `rules/lab-rules.rules`, SIDs 1000041-1000044).
+The bisection signatures SIDs 1000041-1000044 are currently commented out
+in `rules/lab-rules.rules`; they are not active protections. Enable only
+the specific diagnostic rule being tested, upload the updated ruleset,
+and enforce the applicable policy before sending its request.
+
+Use harmless tokens so the built-in XSS engine cannot interfere. Test
+one rule at a time so a Prevent action on one rule does not hide the
+results of another.
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -H 'Referer: aaa1 bbb1' http://192.168.1.220/   # 1000041
-curl -s -o /dev/null -w '%{http_code}\n' -H 'Referer: AAA2'      http://192.168.1.220/   # 1000042
-curl -s -o /dev/null -w '%{http_code}\n' -H 'Referer: AAA3 BBB3' http://192.168.1.220/   # 1000043
-curl -s -o /dev/null -w '%{http_code}\n' -H 'Referer: AAA4 BBB4' http://192.168.1.220/   # 1000044
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Referer: aaa1 bbb1' http://dvwa.lab.local/   # 1000041
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Referer: AAA2'      http://dvwa.lab.local/   # 1000042
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Referer: AAA3 BBB3' http://dvwa.lab.local/   # 1000043
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Referer: AAA4 BBB4' http://dvwa.lab.local/   # 1000044
 ```
 
-| Result | Interpretation |
+The following outcomes are diagnostic clues, not guaranteed conclusions. Confirm each result by checking the Web Snort event fields, the active uploaded ruleset, and the policy applied to the DVWA asset.
+
+| Observed result | Possible interpretation to investigate |
 |---|---|
 | No event for any | The file is not active; fix deployment first |
 | 1000041 matches, 1000042/43 do not | `nocase` is not honored; match case variants instead |

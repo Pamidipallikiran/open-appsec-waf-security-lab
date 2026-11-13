@@ -2,63 +2,64 @@
 
 ## 1. Overview
 
-The lab uses Docker containers to deploy open-appsec, NGINX,
-and vulnerable web applications.
+The lab uses Docker containers to deploy open-appsec, its NGINX attachment, and two vulnerable web applications.
 
-The observed lab environment consists of four running containers.
-The repository's Docker Compose template defines only the two
-core open-appsec services.
-
+The recorded environment contains four running containers. The repository Compose template defines only the two core open-appsec services. The vulnerable applications are deployed independently.
 ## 2. Running Containers
 
 | Container | Docker Image | Purpose |
 |---|---|---|
 | appsec-agent | ghcr.io/openappsec/agent:latest | WAF security engine |
-| appsec-nginx | ghcr.io/openappsec/nginx-attachment:latest | NGINX integration |
-| juice-shop | bkimminich/juice-shop | Vulnerable web application |
-| dvwa | vulnerables/web-dvwa | Vulnerable web application |
+| appsec-nginx | ghcr.io/openappsec/nginx-attachment:latest | NGINX integration and WAF frontend |
+| juice-shop | bkimminich/juice-shop | Vulnerable web application backend |
+| dvwa | vulnerables/web-dvwa | Vulnerable web application backend |
+
+The recorded frontend and backend addresses are:
+
+| Component | Address |
+|---|---|
+| WAF host | 192.168.1.113 |
+| NGINX frontend | 192.168.1.116:80 |
+| Juice Shop backend | 192.168.1.117:3000 |
+| DVWA backend | 192.168.1.118:80 |
+| Host macvlan shim | 192.168.1.119 |
 
 ## 3. Docker Network Architecture
 
 ### Agent network
 
-The appsec-agent container is connected to:
+The appsec-agent container is connected to the Docker network:
 
-- Network: open-appsec-lab_default
+- Network: `open-appsec-lab_default`
+- Container address recorded during inspection: `172.18.0.2`
 
 ### Application network
 
-The following containers are connected to macvlan-lab:
+The following containers are connected to `macvlan-lab`:
 
 - appsec-nginx
 - juice-shop
 - dvwa
 
-Network configuration:
-
-| Setting | Value |
+| Setting | Recorded value |
 |---|---|
 | Network driver | macvlan |
 | Subnet | 192.168.1.0/24 |
 | Gateway | 192.168.1.99 |
 | Parent interface | ens18 |
+| Host shim interface | macvlan-host@ens18 |
+| Host shim address | 192.168.1.119/24 |
 
-The agent and NGINX attachment are not required to share
-the same Docker network. Their observed integration configuration
-uses host IPC and a shared memory mount.
+The agent and NGINX attachment use host IPC and a shared memory mount for their observed integration configuration. They do not need to share the same Docker network.
 
 ## 4. Container Communication Configuration
 
-Both appsec-agent and appsec-nginx use:
+Both `appsec-agent` and `appsec-nginx` use the following integration settings:
 
-- IPC mode: host
-- Shared memory mount: /dev/shm/check-point
+- IPC mode: `host`
+- Shared memory mount: `/dev/shm/check-point`
 
-This shared mount is part of the open-appsec integration
-configuration.
-
-These settings describe the observed deployment and do not
-independently prove successful WAF inspection.
+These settings support communication between the open-appsec agent and NGINX attachment. Their presence alone does not prove that traffic is being inspected or blocked.
 
 ## 5. Persistent Volume Mounts
 
@@ -70,95 +71,108 @@ independently prove successful WAF inspection.
 | /etc/cp/data | Agent data |
 | /var/log/nano_agent | Agent logs |
 | /ext/appsec | Local configuration |
-| /dev/shm/check-point | Shared memory mount |
+| /dev/shm/check-point | Shared memory integration |
 
 ### appsec-nginx
 
 | Container path | Purpose |
 |---|---|
 | /etc/nginx/conf.d | NGINX configuration |
-| /dev/shm/check-point | Shared memory mount |
+| /dev/shm/check-point | Shared memory integration |
+
+The paths above describe the recorded container configuration. Confirm actual host-side bind sources with `docker inspect` before attempting to back up or migrate persistent data.
 
 ## 6. Repository Compose Template
 
-The repository's compose.yaml defines:
+The repository `compose.yaml` defines only these two services:
 
-- appsec-agent
-- appsec-nginx
+- `appsec-agent`
+- `appsec-nginx`
 
 It expects:
 
-- An existing external Docker network named macvlan-lab.
-- An available static IP address of 192.168.1.116.
+- An existing external Docker network named `macvlan-lab`.
+- The frontend address `192.168.1.116` to be available.
 - Host directories configured through environment variables.
-- Agent registration details supplied through a local .env file.
+- Agent registration details supplied through a local `.env` file.
 
-The template does not deploy the Juice Shop or DVWA containers.
-These applications are deployed independently in the observed lab.
+The template does not deploy Juice Shop, DVWA, TheHive, Cortex, or MISP. Those services are managed separately in this lab.
 
-Optional upstream services such as SmartSync, shared storage,
-tuning, and PostgreSQL are not included in this core template.
+Optional SmartSync, shared storage, tuning, and PostgreSQL services are not included in the core template.
 
-Do not run the template alongside an existing deployment
-that uses the same container names or static IP addresses.
+Do not start this template alongside an existing deployment using the same container names, network addresses, or host resources. Review the Compose configuration before deployment.
 
-## 7. Setup Steps
+## 7. Hostname-Based Traffic Flow
 
-Reference commands for rebuilding the lab. Adjust the parent interface,
-subnet, gateway and addresses to your host.
+The NGINX frontend routes requests according to the HTTP hostname:
 
-1. Create the macvlan network used by all lab containers:
+| Hostname | Frontend | Backend |
+|---|---|---|
+| `juice.lab.local` | 192.168.1.116:80 | 192.168.1.117:3000 |
+| `dvwa.lab.local` | 192.168.1.116:80 | 192.168.1.118:80 |
 
-       sudo docker network create -d macvlan \
-         --subnet=192.168.1.0/24 --gateway=192.168.1.99 \
-         -o parent=ens18 macvlan-lab
+Both hostnames must resolve to `192.168.1.116` on the client machine. The NGINX configuration selects the corresponding backend using the request hostname.
 
-2. Start the backend applications on fixed addresses:
+The optional SOAR reverse-proxy hostnames are:
 
-       sudo docker run -d --name juice-shop --network macvlan-lab \
-         --ip 192.168.1.117 --restart unless-stopped bkimminich/juice-shop
-       sudo docker run -d --name dvwa --network macvlan-lab \
-         --ip 192.168.1.118 --restart unless-stopped vulnerables/web-dvwa
+| Hostname | Backend service |
+|---|---|
+| `thehive.lab.local` | 192.168.1.114:9000 |
+| `cortex.lab.local` | 192.168.1.114:9001 |
+| `misp.lab.local` | 192.168.1.114:443 (HTTPS) |
 
-3. Create the local environment file and add your own agent token:
-
-       cp .env.example .env
-
-4. Validate and start the open-appsec services:
-
-       sudo docker compose --env-file .env config --quiet
-       sudo docker compose up -d
-
-Note: a macvlan parent host cannot reach its own macvlan containers
-directly. Test from another machine on the 192.168.1.0/24 network.
+These SOAR routes are optional examples and do not mean that the SOAR services are deployed by this repository Compose template.
 
 ## 8. Security Considerations
 
 - Never publish agent tokens or environment credentials.
-- Do not commit runtime data or sensitive configuration.
+- Do not commit runtime data, generated certificates, or sensitive configuration.
 - Use trusted and maintained container images.
-- Restrict direct access to backend applications.
-- Verify that application traffic traverses the WAF inspection path.
-- Detection and prevention depend on the active security policy.
+- Restrict direct access to vulnerable application backends.
+- Verify that application traffic traverses the intended WAF inspection path.
+- Detection and prevention depend on the active open-appsec security policy.
+- An HTTP response code confirms application reachability, not WAF detection or prevention.
+
+The optional MISP reverse-proxy example uses disabled upstream TLS verification as a lab workaround. Do not use that setting in production; configure and validate the backend certificate instead.
 
 ## 9. Verification Commands
 
 List running containers:
 
-    sudo docker ps
+```bash
+sudo docker ps
+```
 
 Inspect Docker networks:
 
-    sudo docker network ls
+```bash
+sudo docker network ls
+sudo docker network inspect macvlan-lab
+```
 
-Inspect the agent IPC configuration:
+Inspect container network and IPC settings:
 
-    sudo docker inspect appsec-agent
+```bash
+sudo docker inspect appsec-agent
+sudo docker inspect appsec-nginx
+```
 
-Inspect the NGINX configuration:
+Validate the NGINX configuration:
 
-    sudo docker exec appsec-nginx nginx -T
+```bash
+sudo docker exec appsec-nginx nginx -t
+```
+
+Inspect the active NGINX configuration:
+
+```bash
+sudo docker exec appsec-nginx nginx -T
+```
 
 Validate the repository Compose template without starting containers:
 
-    sudo docker compose --env-file .env.example -f compose.yaml config --quiet
+```bash
+sudo docker compose --env-file .env.example -f compose.yaml config --quiet
+```
+
+The Compose validation command checks configuration only. It does not start services.

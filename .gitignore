@@ -36,3 +36,21 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Additional private keys and certificate stores
+*.p12
+*.pfx
+*.jks
+*.token
+
+# Database files and exports
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+
+# Local editor and temporary files
+*.tmp
+*.temp
+*~
