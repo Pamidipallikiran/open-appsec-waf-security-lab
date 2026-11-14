@@ -114,6 +114,8 @@ Juice Shop and DVWA continue to use hostname routing on `192.168.1.116:80`.
 
 ### Why the SOAR services return different HTTP status codes
 
+TheHive, MISP, and Cortex are three different web applications, built with different application frameworks and different HTTP routing logic. They do not handle requests to their root URL (`/`) in the same way.
+
 The three applications handle requests to their root URL (`/`) differently:
 
 | Application | Initial response | Reason | Final page response |
