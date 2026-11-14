@@ -112,6 +112,18 @@ The current SOAR frontends use IP-based listeners; no SOAR hostname or client ho
 
 Juice Shop and DVWA continue to use hostname routing on `192.168.1.116:80`.
 
+### Why the SOAR services return different HTTP status codes
+
+The three applications handle requests to their root URL (`/`) differently:
+
+| Application | Initial response | Reason | Final page response |
+|---|---:|---|---:|
+| TheHive | `200 OK` | Returns a response directly from the root URL | `200` |
+| MISP | `302 Found` | Redirects unauthenticated visitors to `/users/login` | `200` |
+| Cortex | `303 See Other` | Redirects the browser to `/index.html` | `200` |
+
+These are application-level redirects, not evidence of an NGINX failure. The redirect destinations were tested through the WAF frontend and returned HTTP 200. Therefore, the different initial status codes are expected for the tested application routes; they do not need to be changed to 200.
+
 ## Components
 
 | Component | Role |
