@@ -57,9 +57,9 @@ flowchart TB
 
     CLIENT --> NGINX
     ANALYST --> NGINX
-    NGINX -->|"thehive.lab.local"| THEHIVE
-    NGINX -->|"cortex.lab.local"| CORTEX
-    NGINX -->|"misp.lab.local"| MISP
+    NGINX -->|"192.168.1.116:9000"| THEHIVE
+    NGINX -->|"192.168.1.116:9001"| CORTEX
+    NGINX -->|"https://192.168.1.116"| MISP
     AGENT <-->|"Policy / telemetry"| PORTAL
     THEHIVE -.->|"Integration paths to validate"| CORTEX
     THEHIVE -.->|"Threat-intel integration to validate"| MISP
@@ -77,26 +77,21 @@ validation boundaries.
 | Juice Shop backend | `192.168.1.117:3000` | Through WAF |
 | DVWA backend | `192.168.1.118:80` | Through WAF frontend `192.168.1.116` |
 | SOAR VM | `192.168.1.121` | Separate VM |
-| TheHive | `192.168.1.121:9000` | `thehive.lab.local` |
-| Direct TheHive access | `192.168.1.116:9000` | Verified WAF frontend listener; forwards to SOAR VM |
-| Cortex | `192.168.1.121:9001` | `cortex.lab.local` |
-| MISP | `192.168.1.121:443` | `misp.lab.local` |
+| TheHive backend | `192.168.1.121:9000` | Proxied through `http://192.168.1.116:9000` |
+| Cortex backend | `192.168.1.121:9001` | Proxied through `http://192.168.1.116:9001` |
+| MISP backend | `192.168.1.121:443` | Proxied through `https://192.168.1.116` |
 
 The current SOAR VM address is `192.168.1.121`. Its previous address was `192.168.1.114`.
 
-### Hostname resolution
+### SOAR frontend URLs
 
-For the recorded lab deployment, configure DNS or the client hosts file:
+The current SOAR frontends use IP-based listeners; no SOAR hostname or client hosts-file entry is required:
 
-```text
-192.168.1.116 juice.lab.local
-192.168.1.116 dvwa.lab.local
-192.168.1.116 thehive.lab.local
-192.168.1.116 cortex.lab.local
-192.168.1.116 misp.lab.local
-```
+- TheHive: `http://192.168.1.116:9000/`
+- Cortex: `http://192.168.1.116:9001/`
+- MISP: `https://192.168.1.116/` (the lab frontend certificate is self-signed; use `curl -k` for command-line validation only).
 
-TheHive, Cortex and MISP hostnames require their optional NGINX reverse-proxy configurations to be enabled. These entries are examples for this lab; adapt them to your network.
+Juice Shop and DVWA continue to use hostname routing on `192.168.1.116:80`.
 
 ## Components
 
@@ -146,7 +141,9 @@ Do not run the WAF Compose template on the SOAR VM.
 | Cortex reverse proxy | Verified | Expected redirect / application response through WAF frontend |
 | MISP reverse proxy | Verified | Expected login redirect through HTTPS WAF frontend |
 | open-appsec NGINX module / attachment | Verified | Module loaded and attachment registration observed |
-| WAF detection / prevention on the current expanded runtime | Needs event-level validation | Confirm the matching portal event and action; an HTTP response alone is insufficient |
+| SOAR XSS detection | Detected (14 Nov 2026) | User-observed open-appsec portal events for controlled XSS requests to TheHive, Cortex and MISP; action recorded as Detect, not Prevent |
+| SOAR event display latency | Observed delay | Events appeared after the requests; exact portal delay was not measured |
+| SOAR XSS prevention | Not tested | Detect-mode events do not establish blocking |
 | DVWA reverse proxy | Verified (2026-11-13) | HTTP 302 redirect to `login.php` through frontend `192.168.1.116`; confirms routing, not WAF detection or prevention |
 | Automatic WAF-event-to-TheHive case creation | Not verified | Treat as a future integration until a controlled end-to-end test succeeds |
 | TheHive-to-Cortex / MISP integrations | Validate separately | Reverse-proxy access does not prove application-level integration |
@@ -183,7 +180,7 @@ For WAF validation, inspect the open-appsec event and confirm its protection det
 
 ## Recorded Live Lab Status
 
-Snapshot date: 2026-11-13.
+Snapshot date: 2026-11-14.
 
 | Component | Recorded address |
 |---|---|
@@ -196,18 +193,18 @@ Snapshot date: 2026-11-13.
 
 The NGINX hostname routing for Juice Shop and DVWA was verified. The NGINX configuration syntax check also passed.
 
-TheHive, Cortex and MISP proxy reachability checks were recorded separately. MISP HTTPS testing used `curl -k`, which skips certificate verification. These checks do not establish complete SOAR integration.
+On 2026-11-14, IP-based TheHive, Cortex and MISP frontend requests returned HTTP 200, 303 and 302 respectively. Controlled XSS requests returned the same application responses and were subsequently observed as detections in the open-appsec portal. The portal action was Detect; this confirms detection, not prevention. Event appearance was reported as delayed, but the exact delay was not measured. MISP HTTPS testing used `curl -k`, which skips certificate verification.
 
 Historical WAF detection tests are documented separately and must not be treated as fresh tests performed on this snapshot date.
 
 ## Optional SOAR Reverse Proxies
 
-Optional configurations are provided as examples:
+Reference configurations are provided in:
 
 - `configurations/nginx/optional/thehive-cortex.conf.example`
 - `configurations/nginx/optional/misp.conf.example`
 
-They are not loaded automatically by the default NGINX configuration. Review and adapt upstream addresses, hostnames and certificate paths before enabling them.
+The current live configuration uses IP-based listeners on ports 9000, 9001 and 443. The examples are not loaded automatically by the default NGINX configuration; review upstream addresses and certificate paths before enabling them.
 
 The MISP example disables upstream TLS certificate verification as a temporary lab workaround. This is not suitable for production. Configure a trusted CA certificate and enable upstream verification before production use.
 
