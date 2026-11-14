@@ -1,26 +1,19 @@
+# MISP IP-based HTTPS frontend: https://192.168.1.116/
+# WAF frontend: 192.168.1.116
+# SOAR backend: 192.168.1.121:443
 
-# MISP reverse proxy - HTTP
 server {
-    listen 80;
-    server_name misp.lab.local;
-
-    return 301 https://$host$request_uri;
-}
-
-# MISP reverse proxy - HTTPS
-server {
-    listen 443 ssl;
-    server_name misp.lab.local;
+    listen 443 ssl default_server;
+    server_name _;
 
     ssl_certificate /etc/nginx/certs/misp.crt;
     ssl_certificate_key /etc/nginx/certs/misp.key;
 
     ssl_protocols TLSv1.2 TLSv1.3;
-
     client_max_body_size 100M;
 
     location / {
-        proxy_pass https://192.168.1.121;
+        proxy_pass https://192.168.1.121:443;
 
         proxy_http_version 1.1;
 
@@ -35,12 +28,13 @@ server {
         proxy_ssl_server_name on;
         proxy_ssl_name 192.168.1.121;
 
-        # TEMPORARY: backend certificate is expired and self-signed.
+        # Lab-only: backend uses a self-signed/expired certificate.
+        # Configure a trusted CA and enable verification for production.
         proxy_ssl_verify off;
 
-        # Rewrite backend redirects to the WAF HTTPS hostname
-        proxy_redirect https://192.168.1.121/ https://misp.lab.local/;
-        proxy_redirect http://192.168.1.121/ https://misp.lab.local/;
+        # Rewrite backend redirects to the IP-based frontend.
+        proxy_redirect https://192.168.1.121/ https://192.168.1.116/;
+        proxy_redirect http://192.168.1.121/ https://192.168.1.116/;
 
         proxy_read_timeout 300s;
         proxy_connect_timeout 30s;
