@@ -1,60 +1,42 @@
+# IP-based TheHive and Cortex reverse proxies.
+# WAF frontend: 192.168.1.116
+# SOAR backend: 192.168.1.121
+
 # WebSocket connection handling
 map $http_upgrade $connection_upgrade {
     default upgrade;
     ''      close;
 }
 
-# TheHive reverse proxy
-server {
-    listen 80;
-    server_name thehive.lab.local;
-
-    location / {
-        proxy_pass http://192.168.1.121:9000;
-
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        proxy_read_timeout 300s;
-    }
-}
-
-# Cortex reverse proxy
-server {
-    listen 80;
-    server_name cortex.lab.local;
-
-    location / {
-        proxy_pass http://192.168.1.121:9001;
-
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        proxy_read_timeout 300s;
-    }
-}
-
-# TheHive IP-based access through the WAF frontend
+# TheHive: http://192.168.1.116:9000/
 server {
     listen 9000;
     server_name _;
 
     location / {
         proxy_pass http://192.168.1.121:9000;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 300s;
+    }
+}
+
+# Cortex: http://192.168.1.116:9001/
+server {
+    listen 9001;
+    server_name _;
+
+    location / {
+        proxy_pass http://192.168.1.121:9001;
 
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
