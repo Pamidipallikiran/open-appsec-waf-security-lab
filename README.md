@@ -213,7 +213,8 @@ The MISP example disables upstream TLS certificate verification as a temporary l
 | Document | Contents |
 |---|---|
 | [Overall WAF and SOAR Architecture](architecture/architecture.md) | Two-VM topology, IP inventory, request flow, SOAR workflow |
-| [SOAR Reverse-Proxy Integration](documentation/soar-integration.md) | TheHive, Cortex, and MISP routing and validation |
+| [SOAR Reverse-Proxy Integration](documentation/soar-integration.md) | TheHive, Cortex, and MISP IP-based routing and validation |
+| [SOAR WAF Security Validation](documentation/soar-security-validation.md) | Controlled XSS detection evidence and limitations |
 | [NGINX Configuration](documentation/nginx-configuration.md) | Backend selection and proxy directives |
 | [Docker Deployment](documentation/docker-deployment.md) | WAF containers, networks, volumes, setup |
 | [Custom Snort Rules](detection/custom-snort-rules.md) | Signatures, controlled tests, and event verification |
