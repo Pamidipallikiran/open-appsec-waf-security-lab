@@ -53,37 +53,21 @@ server {
 
 The default mapping sends unmatched hostnames to Juice Shop. The explicit hostname entries route Juice Shop and DVWA to their respective backends.
 
-## 4. SOAR Virtual Hosts
+## 4. IP-based SOAR listeners
 
-The extended lab deployment also uses NGINX virtual hosts to provide access to applications running on the separate SOAR VM (`192.168.1.121`).
+The extended lab publishes applications on the separate SOAR VM (`192.168.1.121`) through dedicated WAF NGINX listeners:
 
-| Hostname | Upstream |
-|---|---|
-| `thehive.lab.local` | `http://192.168.1.121:9000` |
-| `cortex.lab.local` | `http://192.168.1.121:9001` |
-| `misp.lab.local` | `https://192.168.1.121:443` |
+| Client URL | NGINX listener | Upstream |
+|---|---:|---|
+| `http://192.168.1.116:9000/` | TCP 9000 | `http://192.168.1.121:9000` (TheHive) |
+| `http://192.168.1.116:9001/` | TCP 9001 | `http://192.168.1.121:9001` (Cortex) |
+| `https://192.168.1.116/` | TLS 443 | `https://192.168.1.121:443` (MISP) |
 
-### Direct TheHive IP-based access
+The active live configuration uses these IP-based listeners. Juice Shop and DVWA continue to use hostname routing on `192.168.1.116:80`.
 
-The optional TheHive/Cortex configuration also includes a dedicated
-NGINX listener on port `9000` for IP-based access:
+The reference configurations are stored under `configurations/nginx/optional/`. They are not automatically loaded by the core NGINX configuration. Review certificate paths and upstream settings before enabling them. The MISP example disables upstream TLS verification as a lab workaround; configure a trusted CA and enable verification before production use.
 
-| Client URL (current frontend) | NGINX upstream |
-|---|---|
-| `http://192.168.1.116:9000` | `http://192.168.1.121:9000` |
-
-The frontend address `.116` is the currently configured WAF NGINX
-container address. The SOAR backend is `.121`. The planned frontend
-address `.114` has not yet been deployed or verified.
-
-This listener provides reverse-proxy reachability. Confirm open-appsec
-inspection and prevention separately through the security event logs.
-
-These are optional reverse-proxy examples stored under `configurations/nginx/optional/`. They are not automatically loaded by the core NGINX configuration. Review and configure the required certificates and hostname resolution before enabling them.
-
-The MISP example disables upstream TLS certificate verification as a lab workaround for its current certificate. Enable proper certificate verification before production use.
-
-Reverse-proxy connectivity does not prove that WAF events are automatically forwarded to TheHive or that TheHive, Cortex and MISP integrations are operational. Configure and validate those application-level integrations separately. See [SOAR Integration](soar-integration.md).
+The live frontend returned HTTP 200 for TheHive, HTTP 303 for Cortex, and HTTP 302 for MISP during checks on 2026-11-14. These responses confirm reachability only.
 
 ## 5. Important NGINX Directives
 
@@ -116,7 +100,19 @@ Reverse-proxy connectivity does not prove that WAF events are automatically forw
 4. The `$host` map selects `192.168.1.118:80`.
 5. NGINX forwards the request to the DVWA backend.
 
-## 7. Configuration Validation and Test Results
+## 7. IP-based SOAR connectivity checks
+
+Run from a client that can reach the WAF frontend:
+
+```bash
+curl -sS -o /dev/null -w 'TheHive HTTP: %{http_code}\\n' http://192.168.1.116:9000/
+curl -sS -o /dev/null -w 'Cortex HTTP: %{http_code}\\n' http://192.168.1.116:9001/
+curl -k -sS -o /dev/null -w 'MISP HTTP: %{http_code}\\n' https://192.168.1.116/
+```
+
+Observed on 2026-11-14: TheHive HTTP 200, Cortex HTTP 303, MISP HTTP 302. Redirects are valid application responses. The `-k` option is for the current lab certificate only.
+
+## 8. Configuration Validation and Test Results
 
 The following checks were performed against the running lab deployment on 2026-11-13:
 
@@ -142,7 +138,7 @@ sudo docker exec appsec-nginx nginx -T
 
 The HTTP responses establish routing and backend reachability. They do not independently establish that open-appsec detected or prevented an attack.
 
-## 8. open-appsec Inspection and Security Considerations
+## 9. open-appsec Inspection and Security Considerations
 
 The NGINX frontend is integrated with the open-appsec agent. Actual inspection and prevention depend on the active agent integration, security policy, and traffic path.
 
@@ -165,3 +161,8 @@ To verify a new WAF test:
 See [Custom Snort Rules](../detection/custom-snort-rules.md) for signature details and the recorded test methodology.
 
 Restrict direct access to backend application ports where practical, so clients use the intended WAF frontend. Do not expose vulnerable applications to untrusted networks.
+
+
+### SOAR XSS detection evidence (2026-11-14)
+
+Controlled URL-encoded XSS test requests were submitted to the IP-based TheHive, Cortex and MISP frontend URLs. Matching Cross Site Scripting events were observed in the open-appsec portal for all three services. The portal showed the Security Action as **Detect**. This supports a detection result for these tests; it does not demonstrate blocking or prevention. The events appeared after a delay, but end-to-end event latency was not measured. HTTP response codes remained the applications’ normal responses (TheHive 200, Cortex 303, MISP 302), which is consistent with Detect-mode testing.
