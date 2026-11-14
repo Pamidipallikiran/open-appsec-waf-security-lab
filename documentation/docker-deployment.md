@@ -5,6 +5,7 @@
 The lab uses Docker containers to deploy open-appsec, its NGINX attachment, and two vulnerable web applications.
 
 The recorded environment contains four running containers. The repository Compose template defines only the two core open-appsec services. The vulnerable applications are deployed independently.
+
 ## 2. Running Containers
 
 | Container | Docker Image | Purpose |
@@ -91,8 +92,8 @@ The repository `compose.yaml` defines only these two services:
 
 It expects:
 
-- An existing external Docker network named `macvlan-lab`.
-- The frontend address `192.168.1.116` to be available.
+- An existing external Docker network named `macvlan-lab` (see [macvlan Setup](macvlan-setup.md)).
+- The frontend address `192.168.1.116` to be available (set `NGINX_IPV4_ADDRESS` in `.env` to change it).
 - Host directories configured through environment variables.
 - Agent registration details supplied through a local `.env` file.
 
@@ -113,22 +114,21 @@ The NGINX frontend routes requests according to the HTTP hostname:
 
 Both hostnames must resolve to `192.168.1.116` on the client machine. The NGINX configuration selects the corresponding backend using the request hostname.
 
-The optional SOAR reverse-proxy hostnames are:
+TheHive, Cortex and MISP are published through IP-based listeners on the same frontend. No SOAR hostname or client hosts-file entry is needed:
 
-| Hostname | Backend service |
-|---|---|
-| `thehive.lab.local` | 192.168.1.121:9000 |
-| `cortex.lab.local` | 192.168.1.121:9001 |
-| `misp.lab.local` | 192.168.1.121:443 (HTTPS) |
+| Client URL | Frontend listener | Backend |
+|---|---|---|
+| `http://192.168.1.116:9000/` | TCP 9000 | `192.168.1.121:9000` (TheHive) |
+| `http://192.168.1.116:9001/` | TCP 9001 | `192.168.1.121:9001` (Cortex) |
+| `https://192.168.1.116/` | TCP 443 | `192.168.1.121:443` (MISP) |
 
-The optional TheHive/Cortex NGINX configuration also defines a direct
-IP-based listener at `192.168.1.116:9000`, forwarding to
-`192.168.1.121:9000`. This endpoint has returned HTTP 200 in the lab.
-The planned frontend address `192.168.1.114:9000` is not yet deployed
-or verified. HTTP reachability alone does not establish WAF inspection
-or prevention.
+These listeners come from the optional examples under `configurations/nginx/optional/`, which the core
+configuration does not load. Earlier revisions of this guide listed `thehive.lab.local`, `cortex.lab.local`
+and `misp.lab.local` and a planned frontend at `192.168.1.114:9000`; both are superseded. The SOAR VM's
+previous address was `192.168.1.114` and is now `192.168.1.121`. TheHive returned HTTP 200 through its
+listener on 2026-11-14. HTTP reachability alone does not establish WAF inspection or prevention.
 
-These SOAR routes are optional examples and do not mean that the SOAR services are deployed by this repository Compose template.
+The repository Compose template does not deploy the SOAR services.
 
 ## 8. Security Considerations
 

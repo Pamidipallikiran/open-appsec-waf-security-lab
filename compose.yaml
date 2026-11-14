@@ -33,7 +33,7 @@ services:
       - shm-volume:/dev/shm/check-point
     networks:
       macvlan-lab:
-        ipv4_address: 192.168.1.116
+        ipv4_address: ${NGINX_IPV4_ADDRESS:-192.168.1.116}
 
 volumes:
   shm-volume:

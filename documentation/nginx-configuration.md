@@ -105,9 +105,9 @@ The live frontend returned HTTP 200 for TheHive, HTTP 303 for Cortex, and HTTP 3
 Run from a client that can reach the WAF frontend:
 
 ```bash
-curl -sS -o /dev/null -w 'TheHive HTTP: %{http_code}\\n' http://192.168.1.116:9000/
-curl -sS -o /dev/null -w 'Cortex HTTP: %{http_code}\\n' http://192.168.1.116:9001/
-curl -k -sS -o /dev/null -w 'MISP HTTP: %{http_code}\\n' https://192.168.1.116/
+curl -sS -o /dev/null -w "TheHive HTTP: %{http_code}\n" http://192.168.1.116:9000/
+curl -sS -o /dev/null -w "Cortex HTTP: %{http_code}\n" http://192.168.1.116:9001/
+curl -k -sS -o /dev/null -w "MISP HTTP: %{http_code}\n" https://192.168.1.116/
 ```
 
 Observed on 2026-11-14: TheHive HTTP 200, Cortex HTTP 303, MISP HTTP 302. Redirects are valid application responses. The `-k` option is for the current lab certificate only.

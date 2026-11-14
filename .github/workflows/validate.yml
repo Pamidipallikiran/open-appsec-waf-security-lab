@@ -1,0 +1,37 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-checks:
+    name: Repository checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static checks (Snort rules, NGINX examples, env vars, Markdown links, secrets)
+        run: python3 scripts/validate_repo.py
+
+  compose:
+    name: Compose configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate compose.yaml with the example environment
+        run: docker compose --env-file .env.example -f compose.yaml config --quiet
+
+  nginx:
+    name: NGINX syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: nginx -t on the example configurations
+        run: bash scripts/check-nginx.sh
