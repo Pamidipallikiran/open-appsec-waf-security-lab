@@ -5,6 +5,7 @@
 ![Docker](https://img.shields.io/badge/Runtime-Docker%20Compose-2496ED)
 ![SOAR](https://img.shields.io/badge/SOAR-TheHive%20%7C%20Cortex%20%7C%20MISP-6A5ACD)
 ![Scope](https://img.shields.io/badge/Scope-Isolated%20Lab%20Only-orange)
+[![Validate](https://github.com/Pamidipallikiran/open-appsec-waf-security-lab/actions/workflows/validate.yml/badge.svg)](https://github.com/Pamidipallikiran/open-appsec-waf-security-lab/actions/workflows/validate.yml)
 
 A hands-on Web Application Firewall and SOC integration lab. The WAF
 layer uses **open-appsec + NGINX** to protect and reverse-proxy
@@ -15,6 +16,24 @@ the same NGINX frontend.
 > **Lab use only.** Juice Shop and DVWA are deliberately vulnerable.
 > Run this environment on an isolated network and test only systems you
 > own or are explicitly authorized to test.
+
+---
+
+## Contents
+
+- [Overall architecture](#overall-architecture)
+- [Network and service inventory](#network-and-service-inventory)
+- [Components](#components)
+- [Quick Start — WAF core](#quick-start--waf-core)
+- [Verification status and evidence](#verification-status-and-evidence)
+- [Recorded Live Lab Status](#recorded-live-lab-status)
+- [Optional SOAR Reverse Proxies](#optional-soar-reverse-proxies)
+- [Documentation](#documentation)
+- [Repository structure](#repository-structure)
+- [Validation and CI](#validation-and-ci)
+- [Security notes](#security-notes)
+- [Roadmap](#roadmap)
+- [Learning objectives](#learning-objectives)
 
 ---
 
@@ -125,8 +144,7 @@ docker compose up -d
 docker compose ps
 ```
 
-Prerequisites (macvlan network, backend containers, host requirements)
-are in the [Docker Deployment guide](documentation/docker-deployment.md).
+Prerequisites are described in the [Docker Deployment guide](documentation/docker-deployment.md). The macvlan network and host shim are covered step by step in [macvlan Setup](documentation/macvlan-setup.md). If something fails, see [Troubleshooting](documentation/troubleshooting.md).
 
 The SOAR reverse-proxy topology and validation procedure are documented
 separately in [SOAR Integration](documentation/soar-integration.md).
@@ -218,11 +236,17 @@ The MISP example disables upstream TLS certificate verification as a temporary l
 | [NGINX Configuration](documentation/nginx-configuration.md) | Backend selection and proxy directives |
 | [Docker Deployment](documentation/docker-deployment.md) | WAF containers, networks, volumes, setup |
 | [Custom Snort Rules](detection/custom-snort-rules.md) | Signatures, controlled tests, and event verification |
+| [macvlan Setup](documentation/macvlan-setup.md) | Creating the macvlan network and host shim the Compose template expects |
+| [Troubleshooting](documentation/troubleshooting.md) | Common failures: network, NGINX, upstreams, events, signatures |
 
 ## Repository structure
 
 ```text
 open-appsec-waf-security-lab/
+├── .github/
+│   ├── pull_request_template.md
+│   └── workflows/
+│       └── validate.yml
 ├── architecture/
 │   └── architecture.md
 ├── configurations/
@@ -237,13 +261,41 @@ open-appsec-waf-security-lab/
 │       └── lab-rules.rules
 ├── documentation/
 │   ├── docker-deployment.md
+│   ├── macvlan-setup.md
 │   ├── nginx-configuration.md
-│   └── soar-integration.md
+│   ├── soar-integration.md
+│   ├── soar-security-validation.md
+│   └── troubleshooting.md
+├── scripts/
+│   ├── check-nginx.sh
+│   └── validate_repo.py
+├── .editorconfig
 ├── .env.example
+├── .gitattributes
 ├── .gitignore
+├── CHANGELOG.md
+├── CONTRIBUTING.md
 ├── compose.yaml
-└── README.md
+├── Makefile
+├── README.md
+└── SECURITY.md
 ```
+
+## Validation and CI
+
+Repository checks run locally and in GitHub Actions on every push and pull request.
+
+```bash
+make validate         # static checks: Snort rules, NGINX examples, env vars, Markdown links, secrets
+make compose-config   # docker compose config with .env.example (needs Docker)
+make nginx-test       # nginx -t on the NGINX configurations in a throwaway container (needs Docker)
+```
+
+`make validate` needs only Python 3. These checks confirm that the repository files are consistent
+with each other. They do **not** show that open-appsec detects or prevents anything; that still
+needs an event in the open-appsec portal (see [Verification status and evidence](#verification-status-and-evidence)).
+
+Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: see [SECURITY.md](SECURITY.md).
 
 ## Security notes
 
@@ -261,6 +313,19 @@ open-appsec-waf-security-lab/
   trusted certificate and enable verification for production.
 - Keep the deliberately vulnerable applications isolated from untrusted
   networks.
+
+## Roadmap
+
+Open items from the verification table above, plus hardening steps. Each needs a controlled test and
+recorded evidence before it is described as working.
+
+- [ ] Verify **Prevent** mode for the SOAR frontends: an event with the Prevent action, and proof that the request did not reach the backend.
+- [ ] Re-run the custom Snort signature tests on the current runtime and resolve the open issue with combined signature 1000032.
+- [ ] Test automatic WAF-event-to-TheHive case creation end to end.
+- [ ] Validate the TheHive-to-Cortex and TheHive-to-MISP integrations at application level.
+- [ ] Replace the MISP lab certificate with a trusted one and enable upstream TLS verification.
+- [ ] Measure portal event latency instead of reporting it as "delayed".
+- [ ] Pin the open-appsec image tags instead of using `latest`.
 
 ## Learning objectives
 

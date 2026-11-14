@@ -37,7 +37,7 @@ TheHive and Cortex proxy blocks preserve the Host header, original client addres
 
 The MISP upstream currently uses TLS with upstream certificate verification disabled because the lab certificate is self-signed or expired. This setting is not suitable for production. Install a trusted upstream certificate, configure the correct CA trust, and enable certificate verification before using this pattern outside an isolated lab.
 
-The live configuration is maintained on the WAF VM in `/home/kiranwaf/open-appsec-lab/nginx-config/`. The repository's `configurations/nginx/default.conf` is the core Juice Shop / DVWA example and is not a complete copy of the live multi-listener configuration. Keep secrets and private keys out of the repository.
+The live configuration is maintained on the WAF VM in the `open-appsec-lab/nginx-config/` directory. The repository's `configurations/nginx/default.conf` is the core Juice Shop / DVWA example and is not a complete copy of the live multi-listener configuration. Keep secrets and private keys out of the repository.
 
 ## 5. Request path
 
@@ -55,13 +55,13 @@ Run these from a client that can reach the WAF frontend:
 
 ```bash
 # TheHive
-curl -sS -o /dev/null -w 'TheHive HTTP: %{http_code}\\n' http://192.168.1.116:9000/
+curl -sS -o /dev/null -w "TheHive HTTP: %{http_code}\n" http://192.168.1.116:9000/
 
 # Cortex
-curl -sS -o /dev/null -w 'Cortex HTTP: %{http_code}\\n' http://192.168.1.116:9001/
+curl -sS -o /dev/null -w "Cortex HTTP: %{http_code}\n" http://192.168.1.116:9001/
 
 # MISP (the -k flag is for the current lab certificate only)
-curl -k -sS -o /dev/null -w 'MISP HTTP: %{http_code}\\n' https://192.168.1.116/
+curl -k -sS -o /dev/null -w "MISP HTTP: %{http_code}\n" https://192.168.1.116/
 ```
 
 Observed on 2026-11-14: TheHive HTTP 200, Cortex HTTP 303, and MISP HTTP 302. Redirects can be valid application responses; inspect the Location header and final application page when needed.
