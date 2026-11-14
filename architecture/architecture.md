@@ -4,12 +4,7 @@
 
 This lab integrates open-appsec with NGINX to inspect HTTP requests before forwarding permitted traffic to vulnerable web applications.
 
-The deployment uses one NGINX frontend with hostname-based routing to two backends:
-
-- OWASP Juice Shop
-- Damn Vulnerable Web Application (DVWA)
-
-Optional reverse-proxy configurations provide access to TheHive, Cortex and MISP hosted on the separate SOAR machine.
+The deployment uses one NGINX frontend. Juice Shop and DVWA use hostname-based routing on port 80; TheHive, Cortex and MISP use dedicated IP-based frontend listeners on ports 9000, 9001 and 443 respectively. The SOAR applications are hosted on the separate SOAR machine.
 
 ## 2. Network Architecture
 
