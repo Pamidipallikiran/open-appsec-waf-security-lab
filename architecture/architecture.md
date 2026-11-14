@@ -38,9 +38,9 @@ flowchart TB
     Client -->|"HTTP / Host: dvwa.lab.local"| Frontend
     Frontend -->|"juice.lab.local"| Juice
     Frontend -->|"dvwa.lab.local"| DVWA
-    Frontend -.->|"Optional reverse proxy"| TheHive
-    Frontend -.->|"Optional reverse proxy"| Cortex
-    Frontend -.->|"Optional HTTPS reverse proxy"| MISP
+    Frontend -->|"TCP 9000"| TheHive
+    Frontend -->|"TCP 9001"| Cortex
+    Frontend -->|"HTTPS 443"| MISP
 ```
 
 The open-appsec agent and NGINX frontend are separate containers. The frontend is attached to the macvlan network, while the agent uses the deployment shared integration configuration.
@@ -55,28 +55,21 @@ The open-appsec agent and NGINX frontend are separate containers. The frontend i
 | DVWA | 192.168.1.118:80 | Vulnerable application backend |
 | SOAR host | 192.168.1.121 | TheHive, Cortex and MISP |
 
-### Hostname routing
+### Frontend routing
 
-| Hostname | Frontend | Backend |
+| Client endpoint | Frontend listener | Backend |
 |---|---|---|
-| juice.lab.local | 192.168.1.116:80 | 192.168.1.117:3000 |
-| dvwa.lab.local | 192.168.1.116:80 | 192.168.1.118:80 |
-| thehive.lab.local | 192.168.1.116:80 | 192.168.1.121:9000 |
-| cortex.lab.local | 192.168.1.116:80 | 192.168.1.121:9001 |
-| misp.lab.local | 192.168.1.116 | 192.168.1.121:443 (optional HTTPS; pending validation) |
+| `http://juice.lab.local/` | `192.168.1.116:80` | `192.168.1.117:3000` |
+| `http://dvwa.lab.local/` | `192.168.1.116:80` | `192.168.1.118:80` |
+| `http://192.168.1.116:9000/` | `192.168.1.116:9000` | `192.168.1.121:9000` (TheHive) |
+| `http://192.168.1.116:9001/` | `192.168.1.116:9001` | `192.168.1.121:9001` (Cortex) |
+| `https://192.168.1.116/` | `192.168.1.116:443` | `192.168.1.121:443` (MISP) |
 
-The optional SOAR routes require their example configurations to be reviewed and enabled separately.
+The current SOAR frontend uses IP-based listeners; hostname routing for the SOAR services is not the active access method.
 
-### Direct TheHive IP-based access
+### IP-based SOAR frontend access
 
-| Client endpoint | Frontend listener | SOAR backend | Status |
-|---|---|---|---|
-| `192.168.1.116:9000` | WAF NGINX container | `192.168.1.121:9000` | Configured and HTTP 200 verified |
-| `192.168.1.114:9000` | Planned frontend address | `192.168.1.121:9000` | Not yet deployed or verified |
-
-The direct listener is defined in the optional
-`thehive-cortex.conf.example` configuration. HTTP reachability does not
-by itself demonstrate open-appsec inspection or prevention.
+TheHive, Cortex and MISP are published through dedicated NGINX listeners on the WAF frontend. Baseline responses observed on 2026-11-14 were HTTP 200, 303 and 302 respectively. These responses establish application reachability, not security verdicts.
 
 
 
@@ -129,11 +122,11 @@ Historical DVWA diagnostic Web Snort events are documented in [Custom Snort Rule
 
 ## 7. Optional SOAR Integration
 
-The separate SOAR host provides:
+The separate SOAR host provides the following backends, published through the WAF frontend:
 
-- TheHive at `192.168.1.121:9000`
-- Cortex at `192.168.1.121:9001`
-- MISP at `192.168.1.121:443`
+- TheHive: `http://192.168.1.116:9000/` → `192.168.1.121:9000`
+- Cortex: `http://192.168.1.116:9001/` → `192.168.1.121:9001`
+- MISP: `https://192.168.1.116/` → `192.168.1.121:443`
 
 Optional NGINX examples are stored under `configurations/nginx/optional/`.
 
@@ -153,7 +146,11 @@ The intended workflow after a WAF security event is:
 
 This describes the intended operational workflow. It does not claim that WAF events are automatically forwarded to TheHive or that TheHive, Cortex and MISP are fully integrated. Each application-level integration must be configured and tested separately.
 
-## 8. Security Considerations
+## 8. Security validation record (2026-11-14)
+
+Controlled XSS test requests were sent through all three IP-based frontend URLs. The user observed matching Cross Site Scripting events in the open-appsec portal for TheHive, Cortex and MISP. The portal showed the Security Action as **Detect**. This confirms detection for the observed tests; it does not establish prevention. Event appearance was reported as delayed, but no measured end-to-end event latency is available.
+
+## 9. Security Considerations
 
 - Use vulnerable applications only in an isolated, authorized lab.
 - Avoid exposing vulnerable backend services directly to untrusted networks.
@@ -163,7 +160,7 @@ This describes the intended operational workflow. It does not claim that WAF eve
 - HTTP response codes demonstrate reachability, not proof of WAF detection or prevention.
 - Verify actual security events and their recorded actions when testing protections.
 
-## 9. Validation Checklist
+## 10. Validation Checklist
 
 | Validation | Evidence required |
 |---|---|
