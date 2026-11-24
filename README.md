@@ -41,6 +41,12 @@ the same NGINX frontend.
 
 
 
+
+
+https://github.com/user-attachments/assets/b7b73a8c-aab6-487f-8fb6-c07540725794
+
+
+
 ## Overall architecture
 
 The extended deployment has two virtual machines:
